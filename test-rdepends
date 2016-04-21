@@ -1,0 +1,84 @@
+#!/bin/bash
+
+export DEBIAN_FRONTEND=noninteractive
+Arch=amd64
+Rel=trusty
+export do_lxc="lxc exec --mode=non-interactive apache2-rdepends "
+Container=apache2-rdepends
+Force=0
+
+if [[ "$1" == "--force" ]] || [[ "$1" == "-f" ]];then
+	Force=1
+fi
+
+if (( $Force ));then
+	echo Force is true
+	cat << EOF > /tmp/apache2-rdepends.$$
+#cloud-config
+package_update: true
+ssh_import_id: [louis-bouchard]
+apt_sources:
+  - source: "ppa:louis-bouchard/apache2-rdepends"
+packages:
+ - apache2
+ - apache2-bin
+ - apache2-data
+ - apache2-dbg
+ - apache2-dev
+ - apache2-doc
+ - apache2-mpm-event
+ - apache2-mpm-itk
+ - apache2-mpm-prefork
+ - apache2-mpm-worker
+ - apache2-suexec
+ - apache2-suexec-custom
+ - apache2-suexec-pristine
+ - apache2-utils
+ - libapache2-mod-macro
+ - libapache2-mod-proxy-html
+ - libapache2-mpm-itk
+final_message: "Container ready"
+EOF
+
+	lxc launch ubuntu-daily:$Rel $Container -c user.user-data="$(cat /tmp/apache2-rdepends.$$)"
+	ret=$?
+	rm -f /tmp/apache2-rdepends.$$
+
+	if ! [[ $ret ]];then
+		echo "Unable to create LXC container"
+		exit 1
+	fi
+	
+	echo -n "Waiting for container configuration to complete"
+	sleep 5
+	echo 'while ! $(grep -q "Container ready" /var/log/cloud-init-output.log;exit $?);do echo -n ".";sleep 5;done;echo Done' | \
+	lxc exec $Container /bin/bash
+
+	echo "Stopping container for snapshot"
+	lxc stop $Container --force
+	lxc snapshot $Container ready
+	echo "Snapshot done"
+fi
+
+[[ -d $(pwd)/logs ]] || mkdir $(pwd)/logs
+
+#DepList=$(reverse-depends -R -r trusty -a amd64 src:apache2 2>/dev/null| grep \* | awk '{print $2}'|uniq)
+DepList="dotclear"
+for Dep in $DepList;do
+	echo "Starting Container"
+	lxc start $Container
+	sleep 5
+	echo -n "### testing $Dep ..."
+	echo "DEBIAN_FRONTEND=noninteractive apt-get install -y $Dep" | \
+		lxc exec --mode=non-interactive $Container /bin/bash > $(pwd)/logs/${Dep}.log 2>&1
+	ret=$?
+	if [[ $ret ]];then
+		echo [ OK ]
+	else
+		echo [FAIL : $ret]
+	fi
+	echo -n "Cleaning up ..."
+	lxc stop $Container
+	lxc restore $Container ready
+	echo "Done"
+	done
