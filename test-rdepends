@@ -74,11 +74,15 @@ for Dep in $DepList;do
 	ret=$?
 	if [[ $ret ]];then
 		echo [ OK ]
+		Successes=$Successes" $Dep"
 	else
 		echo [FAIL : $ret]
+		Failures=$Failures" $Dep"
 	fi
 	echo -n "Cleaning up ..."
 	lxc stop $Container
 	lxc restore $Container ready
 	echo "Done"
 	done
+echo "List of successes : "$Successes
+echo "List of failures : "$Failures
