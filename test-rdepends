@@ -62,8 +62,8 @@ fi
 
 [[ -d $(pwd)/logs ]] || mkdir $(pwd)/logs
 
-#DepList=$(reverse-depends -R -r trusty -a amd64 src:apache2 2>/dev/null| grep \* | awk '{print $2}'|uniq)
-DepList="dotclear"
+DepList=$(reverse-depends -R -r trusty -a amd64 src:apache2 2>/dev/null| grep \* | awk '{print $2}'|uniq)
+#DepList="dotclear"
 for Dep in $DepList;do
 	echo "Starting Container"
 	lxc start $Container
